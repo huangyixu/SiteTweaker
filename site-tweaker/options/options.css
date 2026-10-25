@@ -612,24 +612,91 @@ code {
 .agent-intro p {
   margin: 0 0 12px;
 }
-.agent-examples {
+.agent-quick {
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+  margin-bottom: 8px;
 }
-.agent-example {
-  max-width: 100%;
-  padding: 5px 12px;
+.agent-quick-task {
+  padding: 2px 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--panel-2);
-  font-size: 12.5px;
+  font-size: 12px;
+  line-height: 20px;
   cursor: pointer;
 }
-.agent-example:hover {
+.agent-quick-task:hover {
   border-color: var(--accent);
   color: var(--accent-text);
+}
+.agent.running .agent-quick-task {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.agent-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 11px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent-weak);
+}
+.agent-ask.answered {
+  border-color: var(--border);
+  background: var(--panel-2);
+}
+.agent-ask-question {
+  font-weight: 600;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-ask-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.agent-ask-option {
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 12.5px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.agent-ask-option:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.agent-ask-option.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.agent-ask-option:disabled {
+  cursor: default;
+}
+.agent-ask.answered .agent-ask-option:not(.selected) {
+  opacity: 0.5;
+}
+.agent-ask-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.agent-msg-label {
+  font-weight: 600;
+}
+.agent-msg-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.85;
 }
 
 .agent-msg {
@@ -732,6 +799,15 @@ code {
   align-self: center;
   font-size: 12px;
   color: var(--muted);
+}
+.agent-note.retry {
+  align-self: stretch;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .agent-note.thinking {
   animation: agent-pulse 0.9s infinite alternate;

@@ -89,7 +89,11 @@ const MOCK = `
 `;
 
 // 模拟的 OpenAI 兼容接口，用来预览 AI 助手：API 地址填 http://localhost:5178/__mock-llm/v1，
-// 任意模型名；API Key 填 bad 时返回 401。按本轮已有的工具结果数量依次：看结构 → 查找/查询 → 改 CSS → 总结
+// 任意模型名；API Key 填 bad 时返回 401。按本轮已有的工具结果数量依次：看结构 → 查找/查询 → 改 CSS → 总结。
+// 消息里含「暗色」：先用 ask_user 单选提问；含「让我选择」：多选提问；
+// 含「重试」：每次请求先失败两次（503 + 500）再成功；含「一直失败」：始终返回 500。
+const attempts = new Map();
+
 function mockLlm(req, res) {
   let raw = '';
   req.on('data', (c) => (raw += c));
@@ -105,10 +109,31 @@ function mockLlm(req, res) {
       return res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'OK' } }] }));
     }
     const lastUser = messages.map((m) => m.role).lastIndexOf('user');
+    const userText = lastUser === -1 ? '' : String(messages[lastUser].content);
     const done = messages.slice(lastUser + 1).filter((m) => m.role === 'tool').length;
     const call = (index, id, name, args) => ({ index, id, type: 'function', function: { name, arguments: args } });
+
+    const key = messages.length + '|' + userText;
+    const tries = (attempts.get(key) || 0) + 1;
+    attempts.set(key, tries);
+    if (userText.includes('一直失败') || (userText.includes('重试') && tries <= 2)) {
+      const status = tries === 1 ? 503 : 500;
+      res.writeHead(status, { 'content-type': 'application/json', 'retry-after': '1' });
+      return res.end(JSON.stringify({ error: { message: `mock server error #${tries}` } }));
+    }
+
     let chunks;
-    if (done === 0) {
+    const asking = userText.includes('暗色') ? 'single' : userText.includes('让我选择') ? 'multiple' : '';
+    if (asking && done === 0) {
+      const args =
+        asking === 'single'
+          ? { question: '暗色主题想要哪种风格？', options: ['纯黑（OLED 省电）', '深灰（柔和护眼）', '跟随系统设置自动切换'] }
+          : { question: '要隐藏哪些区域？', options: ['右侧推荐栏', '顶部横幅', '底部下载 App 提示'], multiple: true };
+      chunks = [{ content: '先确认一下细节。' }, { tool_calls: [call(0, 'ask1', 'ask_user', JSON.stringify(args))] }];
+    } else if (asking) {
+      const answer = messages[messages.length - 1].content;
+      chunks = [{ content: '收到你的选择：' + answer }];
+    } else if (done === 0) {
       chunks = [{ content: '我先看看' }, { content: '页面结构。' }, { tool_calls: [call(0, 'c1', 'get_page_overview', '')] }];
     } else if (done === 1) {
       chunks = [

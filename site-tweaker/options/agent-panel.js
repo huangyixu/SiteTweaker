@@ -30,7 +30,40 @@
     cfgTest: $('cfgTest'),
   };
 
-  const EXAMPLES = ['隐藏页面上的广告和推荐内容', '把正文区域加宽，字号调大一点', '改成护眼的暗色主题', '在右下角加一个「回到顶部」按钮'];
+  // 常用任务：按钮上显示 label，发给 AI 的是更完整的 prompt
+  const QUICK_TASKS = [
+    {
+      label: '去广告',
+      prompt:
+        '去掉这个网页上的广告：找出广告位、推广和赞助内容、悬浮广告和 iframe 广告，用 CSS 隐藏它们，注意不要误伤正文。广告是动态插入、选择器不稳定时，再用 JS 配合 MutationObserver 处理。',
+    },
+    {
+      label: '暗色主题',
+      prompt:
+        '给这个网页加一个暗色主题：背景、文字、链接、边框、输入框、代码块的颜色要协调，对比度舒适，图片和视频保持原样。网页自带暗色模式时，优先想办法启用它。',
+    },
+    {
+      label: '宽屏阅读',
+      prompt: '让正文更适合阅读：加宽主内容区域，隐藏两侧与正文无关的侧栏，适当调整正文的字号和行距。',
+    },
+    {
+      label: '精简页面',
+      prompt:
+        '隐藏页面上分散注意力的内容，例如推荐列表、热门榜单、分享按钮、登录或下载 App 的弹窗和横幅，只保留主要内容。动手前先列出你找到的区域，让我选择要隐藏哪些。',
+    },
+    {
+      label: '优化字体',
+      prompt: '优化页面的字体：正文换成更易读的系统字体（中文优先苹方、微软雅黑），适当调大正文字号和行距，代码使用等宽字体。',
+    },
+    {
+      label: '回到顶部',
+      prompt: '在页面右下角加一个「回到顶部」悬浮按钮：滚动超过一屏后出现，点击后平滑滚动到顶部，样式简洁，不遮挡页面内容。',
+    },
+    {
+      label: '解除复制限制',
+      prompt: '解除这个网页对选中和复制文字的限制（例如禁止选择、禁止右键、复制时自动追加版权信息），让我可以正常选中和复制。',
+    },
+  ];
   const OPEN_KEY = 'siteTweaker.agentOpen';
   const TOOL_LABEL = {
     get_page_overview: '查看页面结构',
@@ -48,6 +81,7 @@
   let history = [];
   let controller = null; // 正在进行的对话
   let bubble = null; // 正在流式输出的回复
+  let pendingAsk = null; // AI 正在等用户回答的问题：{ answer(text) }
   const toolLines = new Map(); // 工具调用 id -> 界面上的那一行
   const undoSnapshots = new Map(); // update_rule 调用 id -> 修改前的代码
 
@@ -373,20 +407,27 @@
         btn,
       );
     } else {
-      intro.append(el('p', null, '描述你想把这个网页改成什么样，AI 会先查看参考页面的结构，再写出这条规则的 CSS / JS。'));
-      const list = el('div', 'agent-examples');
-      for (const text of EXAMPLES) {
-        const chip = el('button', 'agent-example', text);
-        chip.type = 'button';
-        chip.addEventListener('click', () => {
-          els.input.value = text;
-          els.input.focus();
-        });
-        list.append(chip);
-      }
-      intro.append(list);
+      intro.append(
+        el('p', null, '描述你想把这个网页改成什么样，AI 会先查看参考页面的结构，再写出这条规则的 CSS / JS。'),
+        el('p', null, '也可以直接点下方的常用任务。'),
+      );
     }
     els.log.append(intro);
+  }
+
+  function renderQuickTasks() {
+    const box = $('agentQuick');
+    box.replaceChildren(
+      ...QUICK_TASKS.map((task) => {
+        const chip = el('button', 'agent-quick-task', task.label);
+        chip.type = 'button';
+        chip.title = task.prompt;
+        chip.addEventListener('click', () => {
+          if (!controller) send(task.prompt, task.label);
+        });
+        return chip;
+      }),
+    );
   }
 
   function addNote(text, kind) {
@@ -496,8 +537,87 @@
     }
   }
 
+  function addUserBubble(text, label) {
+    const user = el('div', 'agent-msg user');
+    if (label) {
+      user.append(el('div', 'agent-msg-label', label));
+      user.append(el('div', 'md-text agent-msg-sub', text));
+    } else {
+      user.append(el('div', 'md-text', text));
+    }
+    return addToLog(user);
+  }
+
+  /** ask_user：显示问题和选项，等用户点选或在输入框里输入其他回答 */
+  function askUser(args, signal) {
+    const question = String(args.question || '').trim();
+    const options = (Array.isArray(args.options) ? args.options : [])
+      .map((o) => String(o).trim())
+      .filter(Boolean)
+      .slice(0, 8);
+    if (!question) return { error: '请提供要问的问题' };
+    const multiple = !!args.multiple && options.length > 1;
+
+    return new Promise((resolve, reject) => {
+      const card = el('div', 'agent-ask');
+      const list = el('div', 'agent-ask-options');
+      const chosen = new Set();
+      const buttons = options.map((option) => {
+        const btn = el('button', 'agent-ask-option', option);
+        btn.type = 'button';
+        btn.addEventListener('click', () => {
+          if (!multiple) return done(option, [option]);
+          if (chosen.has(option)) chosen.delete(option);
+          else chosen.add(option);
+          btn.classList.toggle('selected', chosen.has(option));
+          confirmBtn.disabled = !chosen.size;
+        });
+        return btn;
+      });
+      list.append(...buttons);
+      const confirmBtn = el('button', 'btn small primary', '确定');
+      confirmBtn.type = 'button';
+      confirmBtn.disabled = true;
+      confirmBtn.addEventListener('click', () => {
+        const picked = options.filter((o) => chosen.has(o));
+        done(picked.join('、'), picked);
+      });
+      const foot = el('div', 'agent-ask-foot');
+      foot.append(el('span', 'muted', options.length ? '也可以在下方输入其他回答' : '请在下方输入回答'));
+      if (multiple) foot.append(el('span', 'spacer'), confirmBtn);
+      card.append(el('div', 'agent-ask-question', question), list, foot);
+      addToLog(card);
+
+      const onAbort = () => {
+        close();
+        reject(new DOMException('已停止', 'AbortError'));
+      };
+      function close() {
+        signal.removeEventListener('abort', onAbort);
+        pendingAsk = null;
+        card.classList.add('answered');
+        for (const b of [...buttons, confirmBtn]) b.disabled = true;
+        foot.remove();
+        setRunning(true);
+      }
+      function done(answer, picked) {
+        close();
+        for (const b of buttons) b.classList.toggle('selected', picked.includes(b.textContent));
+        addUserBubble(answer);
+        resolve(picked.length ? { answer, chosen: picked } : { answer, note: '用户没有选择选项，而是自己输入了回答' });
+      }
+
+      signal.addEventListener('abort', onAbort, { once: true });
+      pendingAsk = { answer: (text) => done(text, []) };
+      setRunning(true);
+      els.input.focus();
+    });
+  }
+
   async function execute(name, args, call) {
     switch (name) {
+      case 'ask_user':
+        return askUser(args, controller.signal);
       case 'get_page_overview':
         return inspect('overview', []);
       case 'find_by_text':
@@ -531,17 +651,25 @@
 
   // ---------- 发送与停止 ----------
 
+  const PLACEHOLDER = els.input.placeholder;
+
+  /** 运行中只显示「停止」；AI 在等用户回答问题时，输入框和「回答」按钮可用 */
   function setRunning(on) {
-    els.send.hidden = on;
+    const asking = on && !!pendingAsk;
+    els.send.hidden = on && !asking;
+    els.send.textContent = asking ? '回答' : '发送';
     els.stop.hidden = !on;
+    els.input.placeholder = asking ? '输入其他回答…' : PLACEHOLDER;
     els.panel.classList.toggle('running', on);
+    els.panel.classList.toggle('asking', asking);
   }
 
   function stopRun() {
     if (controller) controller.abort();
   }
 
-  async function send(text) {
+  /** label：从常用任务发起时，对话里显示的任务名 */
+  async function send(text, label) {
     if (controller) return;
     if (!Agent.isConfigured(config)) return openConfig();
     const draft = Editor.getDraft();
@@ -559,10 +687,8 @@
       }
     }
 
-    els.input.value = '';
-    const user = el('div', 'agent-msg user');
-    user.append(el('div', 'md-text', text));
-    addToLog(user);
+    if (!label) els.input.value = '';
+    addUserBubble(text, label);
     history.push({ role: 'user', content: text });
 
     const ownRule = draft.id;
@@ -570,6 +696,8 @@
     setRunning(true);
     const thinking = addNote('思考中…', 'thinking');
     let streamed = '';
+    let retryNote = null; // 同一次请求的多次重试共用一条提示
+    let retries = 0;
 
     try {
       await Agent.run({
@@ -582,6 +710,12 @@
         onEvent(event) {
           if (ruleId !== ownRule) return;
           thinking.remove();
+          if (retryNote && event.type !== 'retry') {
+            // 重试成功：提示收成一行
+            retryNote.className = 'agent-note';
+            retryNote.textContent = `接口出错，自动重试 ${retries} 次后已恢复`;
+            retryNote = null;
+          }
           if (event.type === 'text') {
             if (!bubble) {
               bubble = addToLog(el('div', 'agent-msg assistant'));
@@ -599,8 +733,23 @@
               bubble.remove();
             }
             bubble = null;
+          } else if (event.type === 'retry') {
+            // 重试时丢掉已显示的半截回复，重试成功后会重新输出
+            if (bubble) bubble.remove();
+            bubble = null;
+            streamed = '';
+            const seconds = Math.max(1, Math.round(event.delay / 1000));
+            const text = `接口请求失败：${clip(event.error, 100)}\n${seconds} 秒后自动重试（${event.attempt}/${event.max}）`;
+            retries = event.attempt;
+            if (retryNote) {
+              retryNote.textContent = text;
+              els.log.append(retryNote);
+            } else {
+              retryNote = addNote(text, 'retry');
+            }
+            els.log.append(thinking);
           } else if (event.type === 'tool') {
-            addToolLine(event.call, event.args);
+            if (event.call.function.name !== 'ask_user') addToolLine(event.call, event.args);
           } else if (event.type === 'toolResult') {
             finishToolLine(event.call, event.args, event.result);
             els.log.append(thinking);
@@ -609,6 +758,8 @@
         },
       });
     } catch (err) {
+      // 最终的错误信息里已经写明重试次数
+      if (retryNote) retryNote.remove();
       if (ruleId === ownRule) {
         if (ctrl.signal.aborted) addNote('已停止');
         else addNote(String((err && err.message) || err), 'error');
@@ -626,7 +777,13 @@
   els.form.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = els.input.value.trim();
-    if (text) send(text);
+    if (!text) return;
+    if (pendingAsk) {
+      els.input.value = '';
+      pendingAsk.answer(text);
+    } else {
+      send(text);
+    }
   });
   els.input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -693,6 +850,7 @@
   // ---------- 启动 ----------
 
   // 管理页可能已经打开了某条规则（取决于加载顺序），否则等 onDraft 通知
+  renderQuickTasks();
   const initial = Editor.getDraft();
   if (initial) {
     ruleId = initial.id;
