@@ -50,6 +50,22 @@
 
 快捷键可以在 `chrome://extensions/shortcuts`（Edge 为 `edge://extensions/shortcuts`）里修改。如果和其他扩展冲突，浏览器不会自动分配，需要在那里手动设置。
 
+### AI 助手
+
+在规则编辑区右上角点「AI 助手」，用一句话描述你想要的效果（例如「隐藏右侧推荐栏，正文加宽到 960px」），AI 会读取参考页面的结构，然后替你写这条规则的 CSS / JS。
+
+1. **设置接口**：点顶栏的「AI 设置」，填写 API 地址、API Key 和模型。支持兼容 OpenAI Chat Completions 的服务（OpenAI、DeepSeek、通义千问、Moonshot、本地 Ollama 等），模型需要支持工具调用（function calling）。
+   - API 地址填到 `/v1` 即可（如 `https://api.openai.com/v1`），会自动补上 `/chat/completions`；也可以直接填完整地址。
+   - 「高级选项」里可以填额外请求参数（JSON），比如 `{"temperature": 0.2}`。
+   - 「测试连接」会发一条简短的消息检查配置。
+2. **选择参考页面**：面板顶部列出浏览器里已打开的网页，优先选中本规则适用的、最近访问过的那个。规则还没填网站时，发送第一条消息会自动填入参考页面的域名。
+3. **对话**：AI 会调用工具查看页面结构、按文字查找元素、读取 HTML 和计算样式，再写入代码。每一步都显示在对话里，「修改规则代码」那一行可以一键撤销。
+   - CSS 的改动会立即预览在参考页面上（编辑区里手动改 CSS 也一样）。关闭面板或管理页后，参考页面恢复为已保存的样式。
+   - JS 不会自动运行。点面板里的「保存并刷新页面」后才在参考页面生效。
+   - AI 只改编辑区里的草稿，不会自动保存，确认后再保存。
+
+接口设置只保存在本机（`chrome.storage.local`），不会随规则导出。对话时，参考页面的结构片段和当前规则的代码会发送给你设置的接口。
+
 ### 「适用网站」的写法
 
 每行一条：
@@ -74,9 +90,11 @@ site-tweaker/
   background.js        后台：注册用户脚本、兼容模式运行 JS、角标、快捷键
   content.js           内容脚本：插入并实时更新 CSS，请求运行 JS
   lib/rules.js         网址匹配、规则规范化（各处共用）
-  lib/tools.js         把页面内工具注入到标签页（弹窗和后台共用）
-  inpage/              页面内工具：快捷消除（picker.js）、代码小窗（viewer.js）、共用浮层（ui.js）
-  options/             规则管理页
+  lib/tools.js         把页面内工具注入到标签页、读取页面结构（弹窗、后台、管理页共用）
+  lib/agent.js         AI 助手：OpenAI 兼容接口、工具调用循环、提示词
+  inpage/              页面内工具：快捷消除（picker.js）、代码小窗（viewer.js）、共用浮层（ui.js）、
+                       给 AI 助手读取页面用的只读检查（inspect.js）
+  options/             规则管理页（AI 助手面板在 agent-panel.js）
   popup/               工具栏弹窗
   ui/                  共用样式和代码编辑框
   icons/               图标
@@ -84,7 +102,8 @@ tools/
   test-rules.js        匹配逻辑单元测试：node --test tools/test-rules.js
   e2e-test.js          真实浏览器端到端测试（见下）
   make-icons.js        重新生成图标：node tools/make-icons.js
-  preview-server.js    用模拟的 chrome API 在普通浏览器里预览界面
+  preview-server.js    用模拟的 chrome API 在普通浏览器里预览界面；自带模拟的 AI 接口
+                       （API 地址填 http://localhost:5178/__mock-llm/v1）
 ```
 
 ### 端到端测试

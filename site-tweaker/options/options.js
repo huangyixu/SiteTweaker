@@ -180,6 +180,7 @@
   function fillEditor() {
     els.editor.hidden = !draft;
     els.editorEmpty.hidden = !!draft;
+    notifyDraft('open');
     if (!draft) return;
     els.name.value = draft.name;
     els.enabled.checked = draft.enabled;
@@ -287,19 +288,20 @@
 
   // ---------- 保存 / 删除 / 复制 ----------
 
+  /** 保存成功返回 true */
   async function save() {
-    if (!draft) return;
+    if (!draft) return false;
     readEditor();
     const { matches, errors } = ST.compileSites(draft.sites);
     if (errors.length) {
       toast('「适用网站」里有写法错误，请先修正', true);
       els.sites.focus();
-      return;
+      return false;
     }
     if (!matches.length) {
       toast('请至少填写一个适用网站', true);
       els.sites.focus();
-      return;
+      return false;
     }
 
     const fallbackName = draft.sites.find((s) => !s.startsWith('!') && !s.startsWith('#')) || '未命名规则';
@@ -328,6 +330,8 @@
           : '已保存：已打开的页面已实时更新',
     );
     setTimeout(refreshStatus, 800);
+    notifyDraft('saved');
+    return true;
   }
 
   async function removeRule() {
@@ -427,6 +431,41 @@
     }
   }
 
+  // ---------- 给 AI 助手（agent-panel.js）用的接口 ----------
+
+  const draftListeners = new Set();
+
+  /** kind: 'open' 换了一条规则（或关闭）· 'edit' 内容有改动 · 'saved' 已保存 */
+  function notifyDraft(kind) {
+    for (const fn of draftListeners) fn(kind, draft ? draft.id : null);
+  }
+
+  self.SiteTweakerEditor = {
+    getDraft: () => (draft ? structuredClone(draft) : null),
+    isUnsaved: () => !!draft && (isNew || dirty),
+    /** 把 AI 写的代码填进编辑区（不保存）。patch: { css?, js?, runAt?, world?, sites? } */
+    applyChanges(patch) {
+      if (!draft) return false;
+      if (typeof patch.css === 'string') els.css.value = patch.css;
+      if (typeof patch.js === 'string') els.js.value = patch.js;
+      if (ST.RUN_AT.includes(patch.runAt)) els.runAt.value = patch.runAt;
+      if (ST.WORLDS.includes(patch.world)) els.world.value = patch.world;
+      if (Array.isArray(patch.sites)) els.sites.value = patch.sites.join('\n');
+      readEditor();
+      cssEditor.refresh();
+      jsEditor.refresh();
+      if (Array.isArray(patch.sites)) renderPreview();
+      if (typeof patch.js === 'string' && typeof patch.css !== 'string') setTab('js');
+      else if (typeof patch.css === 'string') setTab('css');
+      updateDirty();
+      notifyDraft('edit');
+      return true;
+    },
+    save,
+    toast,
+    onDraft: (fn) => draftListeners.add(fn),
+  };
+
   // ---------- 事件 ----------
 
   for (const input of [els.name, els.sites, els.css, els.js]) {
@@ -434,12 +473,14 @@
       readEditor();
       if (input === els.sites) renderPreview();
       updateDirty();
+      notifyDraft('edit');
     });
   }
   for (const input of [els.runAt, els.world, els.allFrames]) {
     input.addEventListener('change', () => {
       readEditor();
       updateDirty();
+      notifyDraft('edit');
     });
   }
   els.enabled.addEventListener('change', () => setEnabled(draft.id, els.enabled.checked));

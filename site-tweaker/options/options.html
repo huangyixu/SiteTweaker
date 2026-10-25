@@ -23,6 +23,7 @@
           <input type="checkbox" id="globalEnabled" class="switch" />
         </label>
         <span class="divider"></span>
+        <button id="agentSettingsBtn" class="btn ghost">AI 设置</button>
         <button id="importBtn" class="btn ghost">导入</button>
         <button id="exportBtn" class="btn ghost">导出</button>
         <input type="file" id="importFile" accept=".json,application/json" hidden />
@@ -51,6 +52,13 @@
       <section id="editor" class="editor" hidden>
         <div class="editor-head">
           <input id="ruleName" class="name-input" placeholder="规则名称，例如：知乎宽屏阅读" maxlength="80" />
+          <button id="agentToggle" class="btn agent-toggle" aria-pressed="false" title="让 AI 根据网页内容帮你写 CSS / JS">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3l1.9 4.6 4.6 1.9-4.6 1.9L12 16l-1.9-4.6-4.6-1.9 4.6-1.9z" />
+              <path d="M18.5 15.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z" />
+            </svg>
+            AI 助手
+          </button>
           <label class="switch-label">
             <input type="checkbox" id="ruleEnabled" class="switch" />
             <span>启用</span>
@@ -143,6 +151,39 @@
         </footer>
       </section>
 
+      <aside id="agentPanel" class="agent" hidden aria-label="AI 助手">
+        <div class="agent-head">
+          <strong>AI 助手</strong>
+          <span id="agentModel" class="agent-model muted"></span>
+          <span class="spacer"></span>
+          <button id="agentReset" class="btn ghost small" title="清空对话，重新开始">新对话</button>
+          <button id="agentConfigBtn" class="btn ghost small" title="接口设置">设置</button>
+          <button id="agentClose" class="btn ghost small" title="关闭" aria-label="关闭">✕</button>
+        </div>
+        <div class="agent-target">
+          <label for="agentTab">参考页面</label>
+          <select id="agentTab" class="input"></select>
+          <button id="agentTabRefresh" class="btn ghost small" title="刷新标签页列表" aria-label="刷新标签页列表">↻</button>
+        </div>
+        <div id="agentTargetNote" class="agent-target-note muted"></div>
+        <div id="agentLog" class="agent-log" aria-live="polite"></div>
+        <div id="agentPending" class="agent-pending" hidden>
+          <span>规则有未保存的改动</span>
+          <span class="spacer"></span>
+          <button id="agentSave" class="btn small">保存</button>
+          <button id="agentSaveReload" class="btn small primary" title="保存规则并刷新参考页面，让 JS 生效">保存并刷新页面</button>
+        </div>
+        <form id="agentForm" class="agent-input">
+          <textarea id="agentInput" rows="3" placeholder="说说你想怎么改这个网页，例如：隐藏右侧推荐栏，正文加宽到 960px"></textarea>
+          <div class="agent-input-foot">
+            <span class="muted">Enter 发送 · Shift+Enter 换行</span>
+            <span class="spacer"></span>
+            <button id="agentStop" type="button" class="btn small" hidden>停止</button>
+            <button id="agentSend" type="submit" class="btn small primary">发送</button>
+          </div>
+        </form>
+      </aside>
+
       <section id="editorEmpty" class="editor-empty">
         <img src="../icons/icon128.png" alt="" width="64" height="64" />
         <p>选择左侧的规则进行编辑，或者新建一条规则。</p>
@@ -150,10 +191,54 @@
       </section>
     </main>
 
+    <dialog id="agentDialog" class="dialog">
+      <form id="agentConfigForm" method="dialog">
+        <h2>AI 助手设置</h2>
+        <p class="muted">
+          支持兼容 OpenAI Chat Completions 接口的服务（如 OpenAI、DeepSeek、通义千问、Moonshot、本地 Ollama）。模型需要支持工具调用（function calling）。
+        </p>
+        <label class="form-row">
+          <span>API 地址</span>
+          <input id="cfgUrl" class="input" type="url" required placeholder="https://api.openai.com/v1" spellcheck="false" />
+          <small class="muted">填到 <code>/v1</code> 即可，会自动补上 <code>/chat/completions</code></small>
+        </label>
+        <label class="form-row">
+          <span>API Key</span>
+          <span class="key-field">
+            <input id="cfgKey" class="input" type="password" required autocomplete="off" spellcheck="false" placeholder="sk-..." />
+            <button id="cfgKeyShow" type="button" class="btn ghost small">显示</button>
+          </span>
+        </label>
+        <label class="form-row">
+          <span>模型</span>
+          <input id="cfgModel" class="input" required placeholder="例如 gpt-4o、deepseek-chat、qwen-plus" spellcheck="false" />
+        </label>
+        <details class="help">
+          <summary>高级选项</summary>
+          <label class="form-row">
+            <span>额外请求参数（JSON，可选）</span>
+            <textarea id="cfgExtra" class="input mono" rows="3" spellcheck="false" placeholder='{"temperature": 0.2}'></textarea>
+            <small class="muted">合并进请求体，用于设置温度或服务商特有的参数</small>
+          </label>
+        </details>
+        <p class="notice">设置只保存在本机浏览器，不会随规则导出。对话时，参考页面的结构片段和当前规则的代码会发送给上面的接口。</p>
+        <div class="dialog-foot">
+          <span id="cfgResult" class="cfg-result"></span>
+          <span class="spacer"></span>
+          <button id="cfgTest" type="button" class="btn">测试连接</button>
+          <button id="cfgCancel" type="button" class="btn ghost">取消</button>
+          <button type="submit" class="btn primary">保存</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="../lib/rules.js"></script>
+    <script src="../lib/tools.js"></script>
+    <script src="../lib/agent.js"></script>
     <script src="../ui/code-editor.js"></script>
     <script src="options.js"></script>
+    <script src="agent-panel.js"></script>
   </body>
 </html>

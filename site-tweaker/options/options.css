@@ -506,3 +506,347 @@ code {
 .toast.error {
   background: var(--danger);
 }
+
+/* AI 助手 */
+.agent-toggle {
+  flex: none;
+  color: var(--accent-text);
+  border-color: var(--border);
+}
+.agent-toggle svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.agent-toggle.active {
+  background: var(--accent-weak);
+  border-color: transparent;
+}
+
+.layout.agent-open {
+  grid-template-columns: 260px minmax(380px, 1fr) minmax(340px, 420px);
+}
+/* 窗口较窄时，面板浮在编辑区右侧 */
+@media (max-width: 1180px) {
+  .layout.agent-open {
+    grid-template-columns: 260px 1fr;
+  }
+  .layout.agent-open .agent {
+    position: fixed;
+    top: 72px;
+    right: 20px;
+    bottom: 20px;
+    z-index: 10;
+    width: min(400px, calc(100vw - 40px));
+    box-shadow: 0 8px 40px rgba(16, 24, 40, 0.25);
+  }
+}
+
+.agent {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.agent-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.agent-model {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11.5px var(--mono);
+}
+.agent-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 0 14px;
+  font-size: 12.5px;
+}
+.agent-target label {
+  flex: none;
+  color: var(--muted);
+}
+.agent-target select {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  padding: 2px 6px;
+  font-size: 12.5px;
+}
+.agent-target-note {
+  padding: 4px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.agent-target-note.warn {
+  color: var(--warn-text);
+}
+
+.agent-log {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.agent-intro {
+  margin: auto 0;
+  padding: 12px 4px;
+  color: var(--muted);
+  text-align: center;
+}
+.agent-intro p {
+  margin: 0 0 12px;
+}
+.agent-examples {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.agent-example {
+  max-width: 100%;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.agent-example:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.agent-msg {
+  max-width: 100%;
+  padding: 8px 11px;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.agent-msg.user {
+  align-self: flex-end;
+  max-width: 88%;
+  background: var(--accent);
+  color: #fff;
+}
+.agent-msg.assistant {
+  align-self: stretch;
+  background: var(--panel-2);
+}
+.agent-msg .md-text + .md-text,
+.agent-msg .md-code + .md-text,
+.agent-msg .md-text + .md-code {
+  margin-top: 6px;
+}
+.md-code {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  font: 12px/1.55 var(--mono);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.agent-tool {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.agent-tool-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.agent-tool.running .agent-tool-dot {
+  background: var(--accent);
+  animation: agent-pulse 1s infinite alternate;
+}
+.agent-tool.failed .agent-tool-dot {
+  background: var(--danger);
+}
+.agent-tool.change .agent-tool-name {
+  color: var(--text);
+  font-weight: 600;
+}
+.agent-tool-name {
+  flex: none;
+}
+.agent-tool-arg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+.agent-tool-result {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.agent-tool.failed .agent-tool-result {
+  color: var(--danger);
+  font-family: var(--font);
+}
+.agent-tool .btn {
+  margin-left: auto;
+  height: 22px;
+}
+.agent-tool-undone {
+  margin-left: auto;
+  color: var(--faint);
+}
+@keyframes agent-pulse {
+  from {
+    opacity: 0.3;
+  }
+}
+
+.agent-note {
+  align-self: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+.agent-note.thinking {
+  animation: agent-pulse 0.9s infinite alternate;
+}
+.agent-note.error {
+  align-self: stretch;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--danger-weak);
+  color: var(--danger);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agent-pending {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--accent-weak);
+  color: var(--accent-text);
+  font-size: 12.5px;
+}
+.agent-input {
+  padding: 10px 12px 10px;
+  border-top: 1px solid var(--border);
+}
+.agent-input textarea {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  max-height: 200px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  resize: vertical;
+  font-size: 13px;
+}
+.agent-input-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11.5px;
+}
+
+/* AI 设置对话框 */
+.dialog {
+  width: min(520px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 20px 60px rgba(16, 24, 40, 0.3);
+}
+.dialog::backdrop {
+  background: rgba(10, 12, 20, 0.4);
+}
+.dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+}
+.dialog h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.dialog p {
+  margin: 0;
+  font-size: 13px;
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+}
+.form-row > span:first-child {
+  font-weight: 600;
+}
+.form-row small {
+  font-size: 12px;
+}
+.help .form-row {
+  margin-top: 10px;
+}
+.key-field {
+  display: flex;
+  gap: 6px;
+}
+.key-field .btn {
+  height: auto;
+}
+.mono {
+  font: 12.5px/1.5 var(--mono);
+  resize: vertical;
+}
+.dialog-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cfg-result {
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.cfg-result.ok {
+  color: var(--ok);
+}
+.cfg-result.error {
+  color: var(--danger);
+}

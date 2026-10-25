@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "网页定制 - 自定义 CSS / JS",
   "short_name": "网页定制",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "为指定网站注入你自己的 CSS 样式和 JavaScript 脚本，让网页按你喜欢的样子运行。",
   "minimum_chrome_version": "120",
   "icons": {

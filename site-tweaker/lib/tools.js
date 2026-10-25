@@ -1,4 +1,4 @@
-/* 在标签页里打开页面内工具（快捷消除、代码小窗）。弹窗和后台共用 */
+/* 在标签页里打开页面内工具（快捷消除、代码小窗）、读取页面结构。弹窗、后台和管理页共用 */
 (function (root) {
   'use strict';
 
@@ -18,5 +18,16 @@
     });
   }
 
-  root.SiteTweakerTools = { openTool };
+  /** 在标签页的主框架里调用 inpage/inspect.js 的方法，供 AI 助手读取页面（只读） */
+  async function inspect(tabId, method, args) {
+    await chrome.scripting.executeScript({ target: { tabId }, files: [...FILES, 'inpage/inspect.js'] });
+    const [res] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (name, params) => self.SiteTweakerInspect[name](...params),
+      args: [method, args || []],
+    });
+    return res && res.result;
+  }
+
+  root.SiteTweakerTools = { openTool, inspect };
 })(self);

@@ -28,6 +28,7 @@
   let rules = [];
   let enabled = true;
   let styles = new Map(); // 规则 id -> <style>
+  const previews = new Map(); // 规则 id -> 管理页 AI 助手正在预览的草稿 CSS
   let observer = null;
   let disposed = false;
   let lastHref = location.href;
@@ -67,16 +68,19 @@
   }
 
   function applyCss(active) {
+    // 预览中的规则用草稿 CSS 替换已保存的（不论是否启用、是否已保存）
+    const sheets = active.map((r) => [r.id, previews.has(r.id) ? previews.get(r.id) : r.css]);
+    for (const [id, css] of previews) if (!sheets.some(([sid]) => sid === id)) sheets.push([id, css]);
     const next = new Map();
-    for (const rule of active) {
-      if (!rule.css.trim()) continue;
-      let el = styles.get(rule.id);
+    for (const [id, css] of sheets) {
+      if (!css.trim()) continue;
+      let el = styles.get(id);
       if (!el) {
         el = document.createElement('style');
-        el.setAttribute(ATTR, rule.id);
+        el.setAttribute(ATTR, id);
       }
-      if (el.textContent !== rule.css) el.textContent = rule.css;
-      next.set(rule.id, el);
+      if (el.textContent !== css) el.textContent = css;
+      next.set(id, el);
     }
     for (const [id, el] of styles) if (!next.has(id)) el.remove();
     styles = next;
@@ -129,6 +133,29 @@
     if (changes.settings) enabled = !changes.settings.newValue || changes.settings.newValue.enabled !== false;
     refresh();
   });
+
+  // 管理页的 AI 助手连到本页预览草稿 CSS；管理页关闭或断开后恢复为已保存的样式
+  if (isTop) {
+    chrome.runtime.onConnect.addListener((port) => {
+      if (port.name !== 'site-tweaker-preview') return;
+      const ids = new Set();
+      port.onMessage.addListener((msg) => {
+        if (!msg || typeof msg.id !== 'string') return;
+        if (typeof msg.css === 'string') {
+          previews.set(msg.id, msg.css);
+          ids.add(msg.id);
+        } else {
+          previews.delete(msg.id);
+          ids.delete(msg.id);
+        }
+        refresh();
+      });
+      port.onDisconnect.addListener(() => {
+        for (const id of ids) previews.delete(id);
+        refresh();
+      });
+    });
+  }
 
   document.addEventListener('DOMContentLoaded', () => check() && placeStyles(), { once: true });
 

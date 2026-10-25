@@ -39,10 +39,32 @@ const MOCK = `
   };
   const session = { async get() { return {}; }, async set() {}, async remove() {} };
   const params = new URLSearchParams(location.search);
+  const noop = { addListener() {}, removeListener() {} };
+  const loaded = new Set();
+  const loadScript = (src) => loaded.has(src) ? null : new Promise((resolve, reject) => {
+    loaded.add(src);
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.append(s);
+  });
   window.chrome = {
     storage: { local: area, session, onChanged: { addListener: (fn) => listeners.push(fn) } },
+    // 「参考页面」就是预览页本身：注入的脚本和检查函数直接在当前页面运行
+    scripting: {
+      executeScript: async ({ files, func, args }) => {
+        if (files) {
+          for (const f of files) await loadScript('/' + f);
+          return [];
+        }
+        return [{ result: await func(...(args || [])) }];
+      },
+    },
     runtime: {
       id: 'mockextensionid',
+      getManifest: () => ({ version: '0.0.0-preview' }),
+      onConnect: { addListener: (fn) => (window.__onConnect = fn) },
       getURL: (p) => '/' + p,
       openOptionsPage: () => window.open('/options/options.html'),
       sendMessage: async (msg) => {
@@ -51,17 +73,73 @@ const MOCK = `
       },
     },
     tabs: {
-      query: async () => [{ id: 1, url: params.get('url') || 'https://www.zhihu.com/question/123' }],
+      query: async () => [{ id: 1, title: '知乎 - 有问题，就会有答案', url: params.get('url') || 'https://www.zhihu.com/question/123' }],
       create: ({ url }) => window.open(url),
-      reload: () => {},
+      reload: async () => {},
+      onRemoved: noop,
+      onUpdated: noop,
+      connect: () => ({
+        postMessage: (msg) => (window.__preview = msg),
+        disconnect() {},
+        onDisconnect: noop,
+      }),
     },
   };
 })();
 `;
 
+// 模拟的 OpenAI 兼容接口，用来预览 AI 助手：API 地址填 http://localhost:5178/__mock-llm/v1，
+// 任意模型名；API Key 填 bad 时返回 401。按本轮已有的工具结果数量依次：看结构 → 查找/查询 → 改 CSS → 总结
+function mockLlm(req, res) {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    if (req.headers.authorization === 'Bearer bad') {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ error: { message: 'Incorrect API key provided' } }));
+    }
+    const body = JSON.parse(raw || '{}');
+    const messages = body.messages || [];
+    if (!body.stream) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'OK' } }] }));
+    }
+    const lastUser = messages.map((m) => m.role).lastIndexOf('user');
+    const done = messages.slice(lastUser + 1).filter((m) => m.role === 'tool').length;
+    const call = (index, id, name, args) => ({ index, id, type: 'function', function: { name, arguments: args } });
+    let chunks;
+    if (done === 0) {
+      chunks = [{ content: '我先看看' }, { content: '页面结构。' }, { tool_calls: [call(0, 'c1', 'get_page_overview', '')] }];
+    } else if (done === 1) {
+      chunks = [
+        { tool_calls: [call(0, 'c2', 'find_by_text', '{"text":')] },
+        { tool_calls: [{ index: 0, function: { arguments: '"规则"}' } }] },
+        { tool_calls: [call(1, 'c3', 'query_elements', JSON.stringify({ selector: '.sidebar', styles: ['width'] }))] },
+      ];
+    } else if (done === 3) {
+      const css = '/* 侧栏加宽 */\n.sidebar {\n  background: #fdf6e3 !important;\n}\n';
+      chunks = [{ tool_calls: [call(0, 'c4', 'update_rule', JSON.stringify({ css }))] }];
+    } else {
+      chunks = [{ content: '已完成：给 `.sidebar` 加了**米色背景**。\n\n```css\n.sidebar { background: #fdf6e3 !important; }\n```\n确认无误后点保存。' }];
+    }
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    let i = 0;
+    const tick = () => {
+      if (i < chunks.length) {
+        res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: chunks[i++] }] })}\n\n`);
+        setTimeout(tick, 150);
+      } else {
+        res.end('data: [DONE]\n\n');
+      }
+    };
+    tick();
+  });
+}
+
 http
   .createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
+    if (url.pathname === '/__mock-llm/v1/chat/completions' && req.method === 'POST') return mockLlm(req, res);
     if (url.pathname === '/__mock-chrome.js') {
       res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
       return res.end(MOCK);
