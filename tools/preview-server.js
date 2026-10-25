@@ -91,7 +91,7 @@ const MOCK = `
 // 模拟的 OpenAI 兼容接口，用来预览 AI 助手：API 地址填 http://localhost:5178/__mock-llm/v1，
 // 任意模型名；API Key 填 bad 时返回 401。按本轮已有的工具结果数量依次：看结构 → 查找/查询 → 改 CSS → 总结。
 // 消息里含「暗色」：先用 ask_user 单选提问；含「让我选择」：多选提问；
-// 含「重试」：每次请求先失败两次（503 + 500）再成功；含「一直失败」：始终返回 500。
+// 含「重试」：每次请求先失败两次（503 + 500）再成功；含「一直失败」：始终返回 500；含「慢」：放慢输出。
 const attempts = new Map();
 
 function mockLlm(req, res) {
@@ -142,22 +142,33 @@ function mockLlm(req, res) {
         { tool_calls: [call(1, 'c3', 'query_elements', JSON.stringify({ selector: '.sidebar', styles: ['width'] }))] },
       ];
     } else if (done === 3) {
-      const css = '/* 侧栏加宽 */\n.sidebar {\n  background: #fdf6e3 !important;\n}\n';
-      chunks = [{ tool_calls: [call(0, 'c4', 'update_rule', JSON.stringify({ css }))] }];
+      // 先说一句话，再分段流式输出一大段 CSS 参数（模拟模型写代码时没有文字输出的那段时间）
+      const css = '/* 侧栏加宽 */\n.sidebar {\n  background: #fdf6e3 !important;\n}\n' + '/* 填充 */\n'.repeat(80);
+      const args = JSON.stringify({ css });
+      const size = Math.ceil(args.length / 12);
+      chunks = [{ content: '我会给侧栏换成米色背景。' }, { tool_calls: [call(0, 'c4', 'update_rule', '')] }];
+      for (let k = 0; k < args.length; k += size) chunks.push({ tool_calls: [{ index: 0, function: { arguments: args.slice(k, k + size) } }] });
     } else {
       chunks = [{ content: '已完成：给 `.sidebar` 加了**米色背景**。\n\n```css\n.sidebar { background: #fdf6e3 !important; }\n```\n确认无误后点保存。' }];
     }
+    // 含「慢」：先沉默 4 秒（模拟推理模型思考），之后每段间隔 600ms
+    const slow = userText.includes('慢');
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     let i = 0;
     const tick = () => {
       if (i < chunks.length) {
         res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: chunks[i++] }] })}\n\n`);
-        setTimeout(tick, 150);
+        setTimeout(tick, slow ? 600 : 150);
       } else {
         res.end('data: [DONE]\n\n');
       }
     };
-    tick();
+    if (slow) {
+      res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { reasoning_content: '…' } }] })}\n\n`);
+      setTimeout(tick, 4000);
+    } else {
+      tick();
+    }
   });
 }
 

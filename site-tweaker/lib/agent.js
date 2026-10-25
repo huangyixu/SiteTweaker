@@ -76,7 +76,7 @@
    * 请求一次模型回复。优先流式，接口不支持流式时按普通 JSON 解析。
    * 返回 assistant 消息 { role, content, tool_calls? }
    */
-  async function complete({ config, messages, tools, signal, onText }) {
+  async function complete({ config, messages, tools, signal, onText, onToolProgress }) {
     const body = { model: config.model, messages, stream: true, ...parseExtra(config.extra) };
     if (tools && tools.length) body.tools = tools;
     let res;
@@ -143,12 +143,18 @@
           content += delta.content;
           if (onText) onText(delta.content);
         }
+        // 推理模型（DeepSeek-R1、通义 QwQ 等）先输出思考过程，只用来提示进度，不显示也不回传
+        if ((delta.reasoning_content || delta.reasoning) && onToolProgress) onToolProgress(null);
         for (const part of delta.tool_calls || []) {
           const index = typeof part.index === 'number' ? part.index : calls.length;
           const call = (calls[index] = calls[index] || { id: '', type: 'function', function: { name: '', arguments: '' } });
           if (part.id) call.id = part.id;
           if (part.function && part.function.name) call.function.name += part.function.name;
           if (part.function && part.function.arguments) call.function.arguments += part.function.arguments;
+        }
+        // 模型在生成工具参数（例如整段 CSS）时没有文字输出，单独报告进度
+        if (delta.tool_calls && onToolProgress) {
+          onToolProgress(calls.filter(Boolean).map((c) => ({ name: c.function.name, chars: c.function.arguments.length })));
         }
       }
     }
@@ -248,7 +254,8 @@
    * 处理用户的一次提问：反复请求模型、执行它调用的工具，直到它给出最终回复。
    * history 会被就地追加；system() 每轮都重新生成，以便带上最新的规则代码。
    * onEvent: { type: 'text', text } 流式文字 | { type: 'assistant', message } | { type: 'tool', call, args }
-   *          | { type: 'toolResult', call, args, result }
+   *          | { type: 'toolResult', call, args, result } | { type: 'toolProgress', calls: [{ name, chars }] } 工具参数生成进度
+   *          | { type: 'reasoning' } 推理模型正在思考 | { type: 'retry', attempt, max, delay, error }
    */
   async function run({ config, history, system, tools, execute, signal, onEvent }) {
     const emit = (event) => onEvent && onEvent(event);
@@ -256,7 +263,14 @@
       for (let step = 0; step < MAX_STEPS; step++) {
         const messages = [{ role: 'system', content: system() }, ...compact(history)];
         const message = await completeWithRetry(
-          { config, messages, tools, signal, onText: (text) => emit({ type: 'text', text }) },
+          {
+            config,
+            messages,
+            tools,
+            signal,
+            onText: (text) => emit({ type: 'text', text }),
+            onToolProgress: (calls) => emit(calls ? { type: 'toolProgress', calls } : { type: 'reasoning' }),
+          },
           emit,
         );
         history.push(message);

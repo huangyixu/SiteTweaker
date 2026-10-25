@@ -82,6 +82,7 @@
   let controller = null; // 正在进行的对话
   let bubble = null; // 正在流式输出的回复
   let pendingAsk = null; // AI 正在等用户回答的问题：{ answer(text) }
+  let conversation = 0; // 每次清空对话（含切换规则）加一
   const toolLines = new Map(); // 工具调用 id -> 界面上的那一行
   const undoSnapshots = new Map(); // update_rule 调用 id -> 修改前的代码
 
@@ -392,8 +393,71 @@
   function addToLog(node) {
     els.log.querySelector('.agent-intro')?.remove();
     els.log.append(node);
+    // 运行状态行始终留在对话最下面
+    if (activity.isConnected) els.log.append(activity);
     els.log.scrollTop = els.log.scrollHeight;
     return node;
+  }
+
+  // ---------- 运行状态 ----------
+  // 对话最下面一行 + 输入框下方的状态，显示 AI 此刻在做什么和已用时间，避免看起来像卡住了
+
+  const activity = el('div', 'agent-activity');
+  const activityText = el('span');
+  const activityTime = el('span', 'agent-activity-time');
+  activity.append(el('span', 'agent-spinner'), activityText, activityTime);
+  let runStartedAt = 0;
+  let phaseStartedAt = 0;
+  let phaseText = '';
+  let statusTimer = 0;
+
+  function formatElapsed(ms) {
+    const s = Math.floor(ms / 1000);
+    return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${String(s % 60).padStart(2, '0')} 秒`;
+  }
+
+  function renderStatus() {
+    const now = Date.now();
+    const phaseMs = now - phaseStartedAt;
+    activityText.textContent = phaseText;
+    // 同一阶段超过 3 秒才显示计时，说明仍在进行
+    activityTime.textContent = phaseMs >= 3000 ? formatElapsed(phaseMs) : '';
+    $('agentStatusText').textContent = `${pendingAsk ? '等待你的回答' : '运行中'} · ${formatElapsed(now - runStartedAt)}`;
+  }
+
+  /** 设置当前阶段；waiting 表示在等用户（不显示状态行，问题卡片本身就是提示） */
+  function setPhase(text, waiting) {
+    if (text !== phaseText) {
+      phaseText = text;
+      phaseStartedAt = Date.now();
+    }
+    if (waiting) activity.remove();
+    else if (!activity.isConnected) addToLog(activity);
+    renderStatus();
+  }
+
+  function startStatus() {
+    runStartedAt = Date.now();
+    phaseText = '';
+    $('agentHint').hidden = true;
+    $('agentStatus').hidden = false;
+    clearInterval(statusTimer);
+    statusTimer = setInterval(renderStatus, 1000);
+    setPhase('正在思考…');
+  }
+
+  function stopStatus() {
+    clearInterval(statusTimer);
+    activity.remove();
+    $('agentHint').hidden = false;
+    $('agentStatus').hidden = true;
+  }
+
+  function toolPhase(name, chars) {
+    if (name === 'update_rule') return chars ? `正在编写代码 · 已生成 ${chars.toLocaleString()} 字符` : '正在编写代码…';
+    if (name === 'ask_user') return '正在准备问题…';
+    if (TOOL_LABEL[name]) return `正在${TOOL_LABEL[name]}…`;
+    return '正在思考…';
   }
 
   function renderIntro() {
@@ -691,10 +755,12 @@
     addUserBubble(text, label);
     history.push({ role: 'user', content: text });
 
-    const ownRule = draft.id;
+    // 换了规则或开了新对话后，这次运行的输出不再写进对话
+    const ownConversation = conversation;
+    const isCurrent = () => conversation === ownConversation;
     const ctrl = (controller = new AbortController());
     setRunning(true);
-    const thinking = addNote('思考中…', 'thinking');
+    startStatus();
     let streamed = '';
     let retryNote = null; // 同一次请求的多次重试共用一条提示
     let retries = 0;
@@ -708,8 +774,7 @@
         execute,
         signal: ctrl.signal,
         onEvent(event) {
-          if (ruleId !== ownRule) return;
-          thinking.remove();
+          if (!isCurrent()) return;
           if (retryNote && event.type !== 'retry') {
             // 重试成功：提示收成一行
             retryNote.className = 'agent-note';
@@ -723,7 +788,13 @@
             }
             streamed += event.text;
             bubble.textContent = streamed;
+            setPhase('正在回复…');
             scrollLog();
+          } else if (event.type === 'reasoning') {
+            setPhase('正在深度思考…');
+          } else if (event.type === 'toolProgress') {
+            const last = event.calls[event.calls.length - 1];
+            setPhase(last ? toolPhase(last.name, last.chars) : '正在思考…');
           } else if (event.type === 'assistant') {
             const content = String(event.message.content || '').trim();
             if (content) {
@@ -743,16 +814,22 @@
             retries = event.attempt;
             if (retryNote) {
               retryNote.textContent = text;
-              els.log.append(retryNote);
+              addToLog(retryNote);
             } else {
               retryNote = addNote(text, 'retry');
             }
-            els.log.append(thinking);
+            setPhase(`等待重试（${event.attempt}/${event.max}）…`);
           } else if (event.type === 'tool') {
-            if (event.call.function.name !== 'ask_user') addToolLine(event.call, event.args);
+            const name = event.call.function.name;
+            if (name === 'ask_user') {
+              setPhase('等待你的回答', true);
+            } else {
+              addToolLine(event.call, event.args);
+              setPhase(name === 'update_rule' ? '正在写入规则代码…' : toolPhase(name));
+            }
           } else if (event.type === 'toolResult') {
             finishToolLine(event.call, event.args, event.result);
-            els.log.append(thinking);
+            setPhase('正在思考…');
             scrollLog();
           }
         },
@@ -760,13 +837,13 @@
     } catch (err) {
       // 最终的错误信息里已经写明重试次数
       if (retryNote) retryNote.remove();
-      if (ruleId === ownRule) {
+      if (isCurrent()) {
         if (ctrl.signal.aborted) addNote('已停止');
         else addNote(String((err && err.message) || err), 'error');
       }
     } finally {
-      thinking.remove();
-      if (bubble && ruleId === ownRule) bubble.textContent = streamed;
+      stopStatus();
+      if (bubble && isCurrent()) bubble.textContent = streamed;
       bubble = null;
       if (controller === ctrl) controller = null;
       setRunning(false);
@@ -794,6 +871,7 @@
   els.stop.addEventListener('click', stopRun);
 
   function resetConversation() {
+    conversation++;
     stopRun();
     history = [];
     toolLines.clear();

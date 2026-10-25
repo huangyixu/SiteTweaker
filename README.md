@@ -107,7 +107,7 @@ tools/
   make-icons.js        重新生成图标：node tools/make-icons.js
   preview-server.js    用模拟的 chrome API 在普通浏览器里预览界面；自带模拟的 AI 接口
                        （API 地址填 http://localhost:5178/__mock-llm/v1；消息含「暗色」「让我选择」
-                       模拟提问，含「重试」「一直失败」模拟接口出错）
+                       模拟提问，含「重试」「一直失败」模拟接口出错，含「慢」放慢输出）
 ```
 
 ### 端到端测试
