@@ -1,0 +1,508 @@
+html,
+body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-width: 720px;
+}
+
+/* 顶栏 */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.brand p {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 8px;
+  background: var(--border);
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  margin: 12px 20px 0;
+}
+
+/* 主体两栏 */
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 16px;
+  padding: 16px 20px 20px;
+}
+
+.input {
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+}
+
+/* 规则列表 */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.sidebar-head {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.rule-list {
+  flex: 1;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+}
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.rule-item:hover {
+  background: var(--hover);
+}
+.rule-item.active {
+  background: var(--accent-weak);
+}
+.rule-item.off .rule-title,
+.rule-item.off .rule-sites {
+  opacity: 0.55;
+}
+.rule-main {
+  flex: 1;
+  min-width: 0;
+}
+.rule-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 550;
+}
+.rule-title .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rule-title .unsaved {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.rule-sites {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.rule-tags {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.paused .rule-item {
+  opacity: 0.5;
+}
+.paused .rule-list::before {
+  content: "已暂停全部规则，打开右上角「全部启用」恢复";
+  display: block;
+  padding: 6px 10px 8px;
+  font-size: 12px;
+  color: var(--danger);
+}
+.list-empty {
+  margin: 0;
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+/* 编辑区 */
+.editor,
+.editor-empty {
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+.editor-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--muted);
+  text-align: center;
+}
+.editor-empty img {
+  opacity: 0.9;
+}
+
+.editor-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 18px;
+  font-weight: 650;
+}
+.name-input:hover {
+  border-color: var(--border);
+}
+.name-input:focus {
+  border-color: var(--border-strong);
+  background: var(--panel);
+}
+
+.field-label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.field-label label {
+  font-weight: 600;
+}
+.field-label .muted {
+  font-size: 12px;
+}
+.sites-input {
+  resize: vertical;
+  min-height: 64px;
+  font: 13px/1.6 var(--mono);
+}
+
+.sites-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  font-family: var(--mono);
+  word-break: break-all;
+}
+.chip.include::before {
+  content: "✓";
+  color: var(--ok);
+  font-weight: 700;
+}
+.chip.exclude::before {
+  content: "排除";
+  color: var(--danger);
+  font-family: var(--font);
+  font-weight: 600;
+}
+.chip.error {
+  background: var(--danger-weak);
+  color: var(--danger);
+  font-family: var(--font);
+}
+.chip.warn {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-family: var(--font);
+}
+
+.help {
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+.help summary {
+  width: fit-content;
+  color: var(--accent-text);
+  cursor: pointer;
+  user-select: none;
+}
+.help table {
+  margin: 8px 0;
+  border-collapse: collapse;
+}
+.help td {
+  padding: 4px 16px 4px 0;
+  vertical-align: top;
+  color: var(--muted);
+}
+.help td:first-child {
+  white-space: nowrap;
+}
+code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: 12px var(--mono);
+}
+.url-test {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 640px;
+}
+.test-result {
+  flex: none;
+  font-weight: 600;
+}
+.test-result.yes {
+  color: var(--ok);
+}
+.test-result.no {
+  color: var(--danger);
+}
+
+/* 代码区 */
+.code-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 340px;
+}
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-radius: 8px 8px 0 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 550;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab.active {
+  border-color: var(--border);
+  border-bottom-color: var(--code-bg);
+  background: var(--code-bg);
+  color: var(--text);
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  visibility: hidden;
+}
+.dot.on {
+  visibility: visible;
+}
+.tab-hint {
+  min-width: 0;
+  margin-left: auto;
+  padding: 0 4px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  background: var(--code-bg);
+  overflow: hidden;
+}
+.js-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+.js-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.js-options select {
+  width: auto;
+  min-height: 28px;
+  padding: 2px 8px;
+  color: var(--text);
+}
+
+.code {
+  display: flex;
+  flex: 1;
+  min-height: 260px;
+}
+.code .gutter,
+.code textarea {
+  margin: 0;
+  padding: 12px 0;
+  font: 13px/20px var(--mono);
+  tab-size: 2;
+}
+.code .gutter {
+  flex: none;
+  min-width: 44px;
+  padding-right: 10px;
+  padding-left: 10px;
+  overflow: hidden;
+  background: var(--gutter);
+  color: var(--faint);
+  text-align: right;
+  user-select: none;
+}
+.code textarea {
+  flex: 1;
+  min-width: 0;
+  padding-left: 12px;
+  padding-right: 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  white-space: pre;
+  overflow: auto;
+}
+
+/* 底部操作 */
+.editor-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.check input {
+  accent-color: var(--accent);
+}
+.save-state {
+  margin-left: 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.save-state.dirty {
+  color: var(--accent-text);
+}
+.spacer {
+  flex: 1;
+}
+
+/* 提示消息 */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #23252b;
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  transition: opacity 0.18s, transform 0.18s;
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.toast.error {
+  background: var(--danger);
+}

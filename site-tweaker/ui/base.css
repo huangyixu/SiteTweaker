@@ -1,0 +1,235 @@
+/* 弹窗与管理页共用的基础样式 */
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --panel-2: #f0f2f5;
+  --hover: #eef0f4;
+  --border: #e2e5ea;
+  --border-strong: #cfd4dc;
+  --text: #1c2027;
+  --muted: #687080;
+  --faint: #9aa1ad;
+  --accent: #5b5bd6;
+  --accent-hover: #4c4cc4;
+  --accent-weak: #ececfd;
+  --accent-text: #4343b8;
+  --danger: #d13c3c;
+  --danger-weak: #fdecec;
+  --ok: #178a52;
+  --ok-weak: #e5f6ed;
+  --warn-bg: #fff7e8;
+  --warn-border: #f1d595;
+  --warn-text: #6e4c00;
+  --code-bg: #fbfbfc;
+  --gutter: #f3f4f6;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 6px 16px rgba(16, 24, 40, 0.06);
+  --radius: 10px;
+  --font: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono: "Cascadia Code", "JetBrains Mono", Consolas, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141519;
+    --panel: #1c1d22;
+    --panel-2: #24262c;
+    --hover: #2a2c33;
+    --border: #2f3138;
+    --border-strong: #3d4049;
+    --text: #e6e7ea;
+    --muted: #9ba1ac;
+    --faint: #6d7380;
+    --accent: #7b7bf0;
+    --accent-hover: #8c8cf5;
+    --accent-weak: #2a2a4a;
+    --accent-text: #a9a9ff;
+    --danger: #f06a6a;
+    --danger-weak: #3a2224;
+    --ok: #4cc58a;
+    --ok-weak: #1b3328;
+    --warn-bg: #2f2716;
+    --warn-border: #5a4719;
+    --warn-text: #f0cf7e;
+    --code-bg: #17181c;
+    --gutter: #1f2025;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 var(--font);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent-text);
+}
+
+kbd {
+  font: 11px var(--mono);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* 按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.btn:hover {
+  background: var(--hover);
+}
+.btn:focus-visible,
+.switch:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover {
+  background: var(--accent-hover);
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.btn.ghost:hover {
+  background: var(--hover);
+}
+.btn.danger {
+  color: var(--danger);
+}
+.btn.danger:hover {
+  background: var(--danger-weak);
+}
+.btn.small {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 开关 */
+.switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+}
+.switch:checked {
+  background: var(--accent);
+}
+.switch:checked::after {
+  transform: translateX(14px);
+}
+
+.switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* 标签 */
+.tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 4px;
+  font: 600 10.5px/17px var(--mono);
+  letter-spacing: 0.02em;
+}
+.tag.css {
+  background: #e3effd;
+  color: #1f5fae;
+}
+.tag.js {
+  background: #fdf3d6;
+  color: #8a6100;
+}
+@media (prefers-color-scheme: dark) {
+  .tag.css {
+    background: #1d3149;
+    color: #8cc0ff;
+  }
+  .tag.js {
+    background: #3a3017;
+    color: #f2cf73;
+  }
+}
+
+/* 提示条 */
+.notice {
+  padding: 10px 12px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-size: 13px;
+}
+.notice strong {
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+[hidden] {
+  display: none !important;
+}

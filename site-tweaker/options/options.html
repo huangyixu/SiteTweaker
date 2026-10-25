@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>网页定制 · 规则管理</title>
+    <link rel="icon" href="../icons/icon32.png" />
+    <link rel="stylesheet" href="../ui/base.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="../icons/icon48.png" alt="" width="28" height="28" />
+        <div>
+          <h1>网页定制</h1>
+          <p class="muted">为指定网站注入自定义 CSS / JS</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <label class="switch-label" title="关闭后所有规则都暂停生效">
+          <span>全部启用</span>
+          <input type="checkbox" id="globalEnabled" class="switch" />
+        </label>
+        <span class="divider"></span>
+        <button id="importBtn" class="btn ghost">导入</button>
+        <button id="exportBtn" class="btn ghost">导出</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden />
+      </div>
+    </header>
+
+    <div id="banner" class="notice banner" hidden>
+      <div>
+        <strong>JavaScript 正以兼容模式运行。</strong>
+        对 GitHub 这类有严格安全策略（CSP）的网站，脚本可能被拦截；CSS 不受影响。
+        <span id="bannerHow"></span>
+      </div>
+      <button id="bannerOpen" class="btn small">打开扩展设置</button>
+    </div>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <input id="search" class="input" type="search" placeholder="搜索规则名称或网站" />
+          <button id="newBtn" class="btn primary">＋ 新建</button>
+        </div>
+        <ul id="ruleList" class="rule-list"></ul>
+        <p id="listEmpty" class="list-empty muted" hidden></p>
+      </aside>
+
+      <section id="editor" class="editor" hidden>
+        <div class="editor-head">
+          <input id="ruleName" class="name-input" placeholder="规则名称，例如：知乎宽屏阅读" maxlength="80" />
+          <label class="switch-label">
+            <input type="checkbox" id="ruleEnabled" class="switch" />
+            <span>启用</span>
+          </label>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <label for="ruleSites">适用网站</label>
+            <span class="muted">每行一个，以 ! 开头表示排除</span>
+          </div>
+          <textarea
+            id="ruleSites"
+            class="input sites-input"
+            rows="3"
+            spellcheck="false"
+            placeholder="github.com&#10;*://news.ycombinator.com/item*&#10;!gist.github.com"
+          ></textarea>
+          <div id="sitesPreview" class="sites-preview"></div>
+          <details class="help">
+            <summary>写法说明与网址测试</summary>
+            <table>
+              <tbody>
+                <tr><td><code>github.com</code></td><td>该域名及其所有子域名（如 gist.github.com），任意页面</td></tr>
+                <tr><td><code>www.zhihu.com/question</code></td><td>该域名下，路径以 /question 开头的页面</td></tr>
+                <tr><td><code>localhost:3000</code></td><td>本机指定端口</td></tr>
+                <tr><td><code>https://*.example.com/news/*</code></td><td>Chrome 标准匹配模式，按原样精确匹配</td></tr>
+                <tr><td><code>!gist.github.com</code></td><td>排除这些网址（优先于其他行）</td></tr>
+                <tr><td><code>*</code></td><td>所有网站</td></tr>
+                <tr><td><code># 备注</code></td><td>以 # 开头的行会被忽略</td></tr>
+              </tbody>
+            </table>
+            <div class="url-test">
+              <input id="testUrl" class="input" type="url" placeholder="粘贴一个网址，测试本规则是否生效" />
+              <span id="testResult" class="test-result"></span>
+            </div>
+          </details>
+        </div>
+
+        <div class="code-section">
+          <div class="tabs" role="tablist">
+            <button class="tab" role="tab" data-tab="css">CSS 样式<span class="dot" data-dot="css"></span></button>
+            <button class="tab" role="tab" data-tab="js">JavaScript 脚本<span class="dot" data-dot="js"></span></button>
+            <span class="tab-hint muted" data-hint="css">保存后已打开的页面立即生效；被原样式覆盖时可加 <code>!important</code></span>
+            <span class="tab-hint muted" data-hint="js">保存后刷新页面生效；可直接使用 <code>await</code></span>
+          </div>
+
+          <div class="pane" data-pane="css">
+            <div class="code">
+              <pre class="gutter" aria-hidden="true"></pre>
+              <textarea id="ruleCss" spellcheck="false" wrap="off" placeholder="/* 在这里写 CSS，例如： */&#10;body {&#10;  font-size: 16px !important;&#10;}"></textarea>
+            </div>
+          </div>
+
+          <div class="pane" data-pane="js" hidden>
+            <div class="js-options">
+              <label>
+                运行时机
+                <select id="ruleRunAt" class="input">
+                  <option value="document_idle">页面加载完成后（推荐）</option>
+                  <option value="document_end">DOM 就绪时</option>
+                  <option value="document_start">页面开始加载时</option>
+                </select>
+              </label>
+              <label>
+                运行环境
+                <select id="ruleWorld" class="input">
+                  <option value="MAIN">页面环境：可访问网页自己的变量</option>
+                  <option value="USER_SCRIPT">隔离环境：与网页脚本互不干扰</option>
+                </select>
+              </label>
+            </div>
+            <div class="code">
+              <pre class="gutter" aria-hidden="true"></pre>
+              <textarea id="ruleJs" spellcheck="false" wrap="off" placeholder="// 在这里写 JavaScript，例如：&#10;document.querySelector('.ad-banner')?.remove();"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <footer class="editor-foot">
+          <label class="check">
+            <input type="checkbox" id="ruleAllFrames" />
+            同时作用于页面内嵌的 iframe
+          </label>
+          <span id="saveState" class="save-state"></span>
+          <span class="spacer"></span>
+          <button id="deleteBtn" class="btn ghost danger">删除</button>
+          <button id="dupBtn" class="btn ghost">复制</button>
+          <button id="saveBtn" class="btn primary">保存 <kbd>Ctrl S</kbd></button>
+        </footer>
+      </section>
+
+      <section id="editorEmpty" class="editor-empty">
+        <img src="../icons/icon128.png" alt="" width="64" height="64" />
+        <p>选择左侧的规则进行编辑，或者新建一条规则。</p>
+        <button id="emptyNewBtn" class="btn primary">＋ 新建规则</button>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="../lib/rules.js"></script>
+    <script src="../ui/code-editor.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>
