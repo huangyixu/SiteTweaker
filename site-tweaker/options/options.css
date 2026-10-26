@@ -479,6 +479,22 @@ code {
 .save-state.dirty {
   color: var(--accent-text);
 }
+.sync-hint {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: help;
+}
+.tag.local {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-family: inherit;
+}
 .spacer {
   flex: 1;
 }

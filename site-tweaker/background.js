@@ -4,10 +4,12 @@
  * - 用户脚本权限没开时，按内容脚本的请求以兼容方式（<script> 标签）运行 JS
  * - 维护工具栏图标上的规则数量角标
  * - 响应快捷键，打开快捷消除 / 代码小窗
+ * - 把规则和设置通过 chrome.storage.sync 随浏览器账号同步
  */
-importScripts('lib/rules.js', 'lib/tools.js');
+importScripts('lib/rules.js', 'lib/tools.js', 'lib/sync.js');
 
 const ST = self.SiteTweaker;
+const SYNC = self.SiteTweakerSync;
 const BADGE_COLOR = '#5b5bd6';
 
 /** Chrome 120-137 需开启开发者模式，138+ 需在扩展详情页开启「允许用户脚本」 */
@@ -85,6 +87,60 @@ function scheduleSync() {
 async function syncIfPermissionChanged() {
   const { syncedWith } = await chrome.storage.session.get('syncedWith');
   if (syncedWith !== userScriptsAvailable()) await syncUserScripts();
+}
+
+// ---------- 账号同步 ----------
+
+let reconcileChain = Promise.resolve();
+let reconcileTimer = 0;
+
+/** 合并有 2 秒防抖：编辑、开关连续触发时合成一次写入，避开同步区每分钟 120 次的写入上限 */
+function scheduleReconcile(delay = 2000) {
+  clearTimeout(reconcileTimer);
+  reconcileTimer = setTimeout(() => {
+    reconcileChain = reconcileChain.then(reconcile, reconcile);
+  }, delay);
+}
+
+async function reconcile() {
+  const [local, remote] = await Promise.all([
+    chrome.storage.local.get(['rules', 'settings', 'syncBase', 'syncState']),
+    chrome.storage.sync.get(null),
+  ]);
+  const oldBase = local.syncBase || {};
+  const plan = SYNC.merge({ rules: local.rules, settings: local.settings, remote, base: oldBase, keepLocal: isPristineExample });
+
+  // 先写本地；合并期间用户又改了规则就放弃这一轮，稍后重来
+  const patch = {};
+  if (plan.rules) patch.rules = plan.rules;
+  if (plan.settings) patch.settings = plan.settings;
+  if (Object.keys(patch).length) {
+    const now = await chrome.storage.local.get(['rules', 'settings']);
+    if (JSON.stringify(now.rules) !== JSON.stringify(local.rules) || JSON.stringify(now.settings) !== JSON.stringify(local.settings)) {
+      return scheduleReconcile();
+    }
+    await chrome.storage.local.set(patch);
+  }
+
+  let error = '';
+  try {
+    if (Object.keys(plan.set).length) await chrome.storage.sync.set(plan.set);
+    if (plan.remove.length) await chrome.storage.sync.remove(plan.remove);
+  } catch (err) {
+    // 没写进同步区的改动保持原来的指纹，下次重试
+    error = String((err && err.message) || err);
+    for (const key of [...Object.keys(plan.set), ...plan.remove]) {
+      if (key in oldBase) plan.base[key] = oldBase[key];
+      else delete plan.base[key];
+    }
+    scheduleReconcile(60000);
+  }
+
+  const state = { unsynced: plan.unsynced, error };
+  const meta = {};
+  if (JSON.stringify(plan.base) !== JSON.stringify(oldBase)) meta.syncBase = plan.base;
+  if (JSON.stringify(state) !== JSON.stringify(local.syncState)) meta.syncState = state;
+  if (Object.keys(meta).length) await chrome.storage.local.set(meta);
 }
 
 // ---------- 兼容方式运行 JS ----------
@@ -184,6 +240,7 @@ function setupBadge() {
 
 function exampleRule() {
   return ST.normalizeRule({
+    id: 'example',
     name: '示例：example.com 暗色主题',
     sites: ['example.com'],
     css: [
@@ -215,6 +272,13 @@ function exampleRule() {
   });
 }
 
+/** 没改过的示例规则不上传，免得每台新设备都往账号里再塞一份 */
+function isPristineExample(rule) {
+  if (rule.id !== 'example') return false;
+  const plain = (r) => JSON.stringify({ ...r, updatedAt: 0 });
+  return plain(rule) === plain(exampleRule());
+}
+
 /** 安装或更新后，让已打开的页面也立即用上 CSS（JS 需要刷新页面） */
 async function injectIntoOpenTabs() {
   const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*', 'file:///*'] });
@@ -229,9 +293,15 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   setupBadge();
   if (reason === 'install') {
     const { rules } = await chrome.storage.local.get('rules');
-    if (!rules) await chrome.storage.local.set({ rules: [exampleRule()], settings: { enabled: true } });
+    if (!rules) {
+      // 账号里已经同步过规则（在别的设备上用过）就不放示例规则，稍后合并时拉取
+      const remote = await chrome.storage.sync.get(null).catch(() => ({}));
+      const synced = Object.keys(remote).some((key) => key.startsWith(SYNC.RULE_PREFIX));
+      await chrome.storage.local.set({ rules: synced ? [] : [exampleRule()], settings: { enabled: true } });
+    }
     chrome.runtime.openOptionsPage();
   }
+  scheduleReconcile(0);
   await syncUserScripts();
   injectIntoOpenTabs();
 });
@@ -242,8 +312,16 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (changes.rules || changes.settings)) scheduleSync();
+  if (area === 'local' && (changes.rules || changes.settings)) {
+    scheduleSync();
+    scheduleReconcile();
+  } else if (area === 'sync') {
+    scheduleReconcile();
+  }
 });
+
+// 后台每次被唤醒都对一下账号里的数据：只读不写，没有差异时没有开销
+scheduleReconcile();
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
   const tool = { 'start-picker': 'picker', 'toggle-viewer': 'viewer' }[command];

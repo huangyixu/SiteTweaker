@@ -434,6 +434,60 @@ async function main() {
     check('在管理页保存后，已打开的页面同步更新', s && s.bg === 'rgb(7, 8, 9)', s);
     check('管理页没有报错', !opt.logs.some((l) => /^(error|exception)/.test(l)), opt.logs);
 
+    // ===== 账号同步 =====
+    // 测试浏览器没有登录账号，chrome.storage.sync 照样可读写；“另一台设备”用直接改同步区来模拟
+    section('账号同步');
+    const syncGet = () => evaluate(sw.sessionId, `chrome.storage.sync.get(null)`);
+    const localRules = () => evaluate(sw.sessionId, `chrome.storage.local.get('rules').then(d => d.rules.map(r => r.id))`);
+    let remote = await waitFor(async () => {
+      const d = await syncGet();
+      return d.settings && d['rule:cssMain'] && d['rule:cssMain'].css.includes('7, 8, 9') ? d : null;
+    });
+    const remoteIds = Object.keys(remote || {}).filter((k) => k.startsWith('rule:'));
+    check('规则和设置写入同步区，每条规则单独一项', remoteIds.length === rules.length && remote.settings.enabled === true, remote && Object.keys(remote));
+    check('没改过的示例规则不上传', !remote['rule:example'], Object.keys(remote));
+
+    await evaluate(sw.sessionId, `chrome.storage.sync.set({ 'rule:fromOther': self.SiteTweaker.normalizeRule({ id: 'fromOther', name: '另一台设备的规则', sites: ['example.net'], css: 'h1 {}' }) })`);
+    let pulled = await waitFor(async () => (await localRules()).includes('fromOther'));
+    check('别的设备新增的规则拉取到本地', pulled === true);
+    const optListed = await waitFor(() => evaluate(opt.sessionId, `[...document.querySelectorAll('.rule-item')].some(li => li.textContent.includes('另一台设备的规则'))`), 3000);
+    check('管理页即时列出拉取到的规则', optListed === true);
+    await evaluate(sw.sessionId, `chrome.storage.sync.remove('rule:fromOther')`);
+    const dropped = await waitFor(async () => !(await localRules()).includes('fromOther'));
+    check('别的设备删除规则后，本机也删除', dropped === true);
+
+    await evaluate(sw.sessionId, `chrome.storage.sync.set({ settings: { enabled: false } })`);
+    const paused = await waitFor(() => evaluate(sw.sessionId, `chrome.storage.local.get('settings').then(d => d.settings.enabled === false)`));
+    check('别的设备关闭总开关，本机跟着关闭', paused === true);
+    await evaluate(sw.sessionId, `chrome.storage.sync.set({ settings: { enabled: true } })`);
+    await waitFor(() => evaluate(sw.sessionId, `chrome.storage.local.get('settings').then(d => d.settings.enabled === true)`));
+
+    await evaluate(sw.sessionId, `chrome.storage.local.get('rules').then(d => chrome.storage.local.set({ rules: [...d.rules, self.SiteTweaker.normalizeRule({ id: 'bigRule', name: '超大规则', sites: ['example.net'], css: '/* ' + 'x'.repeat(9000) + ' */' })] }))`);
+    const bigState = await waitFor(() => evaluate(sw.sessionId, `chrome.storage.local.get('syncState').then(d => d.syncState && d.syncState.unsynced.bigRule)`));
+    check('超过 8 KB 的规则记为只在本机', bigState === 'tooLarge', bigState);
+    remote = await syncGet();
+    check('超大规则没有写入同步区，其他规则照常同步', !remote['rule:bigRule'] && !!remote['rule:cssMain'], Object.keys(remote));
+    const bigUi = await waitFor(() =>
+      evaluate(opt.sessionId, `(async () => {
+        const li = [...document.querySelectorAll('.rule-item')].find(li => li.textContent.includes('超大规则'));
+        if (!li || !li.textContent.includes('仅本机')) return null;
+        li.click();
+        await new Promise(r => setTimeout(r, 100));
+        const hint = document.getElementById('syncHint');
+        return hint.hidden ? null : hint.title;
+      })()`),
+    3000);
+    check('管理页标注「仅本机」并说明原因', typeof bigUi === 'string' && bigUi.includes('8 KB'), bigUi);
+    await screenshot(opt, 'options-sync-too-large');
+
+    await evaluate(sw.sessionId, `chrome.storage.local.set({ agent: { baseUrl: 'http://localhost:1/v1', apiKey: 'sk-e2e-secret', model: 'm' } })`);
+    await sleep(2800);
+    check('AI 接口设置和 API Key 不进同步区', !JSON.stringify(await syncGet()).includes('sk-e2e-secret'));
+    await evaluate(sw.sessionId, `chrome.storage.local.remove('agent')`);
+    await evaluate(sw.sessionId, `chrome.storage.local.get('rules').then(d => chrome.storage.local.set({ rules: d.rules.filter(r => r.id !== 'bigRule') }))`);
+    const cleared = await waitFor(() => evaluate(sw.sessionId, `chrome.storage.local.get('syncState').then(d => !d.syncState.unsynced.bigRule)`));
+    check('删掉超大规则后，同步状态恢复', cleared === true);
+
     // ===== 开启用户脚本 =====
     section('用户脚本模式（开启「允许用户脚本」后）');
     const ext = await openPage(`chrome://extensions/?id=${extId}`);

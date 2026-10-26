@@ -25,9 +25,10 @@
 • 代码小窗（Alt+Shift+C）：在当前页面浮出小窗，查看、开关、复制作用于本页的所有规则。
 • 工具栏弹窗：显示当前网站生效的规则，可逐条开关、一键新建，图标角标显示规则数量。
 • AI 助手（可选）：填写你自己的 OpenAI 兼容接口（OpenAI、DeepSeek、通义千问、Moonshot、本地 Ollama 等）后，用一句话描述需求，AI 会读取页面结构并替你写好 CSS / JS，改动可预览、可撤销。
+• 账号同步：登录浏览器账号并开启扩展同步后，规则和设置自动同步到你的其他设备。
 • 导入 / 导出：规则可以导出为文件备份或分享。
 
-隐私：规则和设置只保存在浏览器本地，扩展没有自己的服务器，不收集任何数据。AI 助手只有在你配置接口并主动使用时，才会把对话内容和页面结构片段直接发送到你指定的接口。
+隐私：规则和设置保存在浏览器里，并通过浏览器自带的账号同步（chrome.storage.sync）同步到你的其他设备；AI 接口设置和 API Key 只保存在本机。扩展没有自己的服务器，不收集任何数据。AI 助手只有在你配置接口并主动使用时，才会把对话内容和页面结构片段直接发送到你指定的接口。
 
 ## 搜索词（最多 7 个）
 
@@ -35,7 +36,7 @@
 
 ## 认证说明（Notes for certification）
 
-This extension lets users inject their own CSS and JavaScript into websites they choose (similar to Stylus / Tampermonkey). No remote code is downloaded or executed: every script that runs is code the user typed into the extension's own options page and stored in chrome.storage.local.
+This extension lets users inject their own CSS and JavaScript into websites they choose (similar to Stylus / Tampermonkey). No remote code is downloaded or executed: every script that runs is code the user typed into the extension's own options page and stored in chrome.storage.local (mirrored to chrome.storage.sync so the browser can sync the user's own rules across their devices).
 
 How to test:
 1. Install the extension. The options page opens automatically with a sample rule for example.com.
@@ -46,6 +47,6 @@ How to test:
 Permissions:
 - userScripts / scripting: run the user's own CSS/JS on matching sites.
 - host_permissions <all_urls>: rules can target any site the user specifies.
-- storage: save rules locally.
+- storage: save rules and settings, and sync them across the user's devices via chrome.storage.sync.
 
 AI assistant (optional, off by default): only after the user enters their own OpenAI-compatible API URL and key, page structure snippets and the rule code are sent to that user-chosen endpoint. No test account is required; the feature can be skipped during review. The developer operates no server and collects no data.

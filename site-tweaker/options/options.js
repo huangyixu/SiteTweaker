@@ -3,6 +3,7 @@
   'use strict';
 
   const ST = self.SiteTweaker;
+  const SYNC = self.SiteTweakerSync;
   const $ = (id) => document.getElementById(id);
 
   const els = {
@@ -26,6 +27,7 @@
     world: $('ruleWorld'),
     allFrames: $('ruleAllFrames'),
     saveState: $('saveState'),
+    syncHint: $('syncHint'),
     toast: $('toast'),
   };
 
@@ -35,6 +37,7 @@
   let rules = [];
   let settings = { enabled: true };
   let status = null;
+  let syncState = {}; // 后台写入的账号同步状态 { unsynced: { id: 'tooLarge' | 'quota' }, error }
   let draft = null; // 正在编辑的规则副本
   let isNew = false; // draft 是否还没保存过
   let baseline = ''; // 打开时的内容快照，用来判断有没有改动
@@ -109,6 +112,11 @@
     const tags = el('div', 'rule-tags');
     if (view.css.trim()) tags.append(el('span', 'tag css', 'CSS'));
     if (view.js.trim()) tags.append(el('span', 'tag js', 'JS'));
+    if (!(current && isNew) && syncState.unsynced && syncState.unsynced[rule.id]) {
+      const local = el('span', 'tag local', '仅本机');
+      local.title = '这条规则没有随浏览器账号同步';
+      tags.append(local);
+    }
     if (tags.childElementCount) main.append(tags);
 
     const toggle = el('input', 'switch');
@@ -226,6 +234,24 @@
     else text = '已保存 · ' + formatTime(draft.updatedAt);
     els.saveState.textContent = text;
     els.saveState.classList.toggle('dirty', isNew || dirty);
+    renderSyncHint();
+  }
+
+  /** 规则超过同步上限时提示：编辑中按草稿大小即时判断，已保存的再看后台的同步结果 */
+  function renderSyncHint() {
+    const bytes = SYNC.ruleBytes(draft);
+    const saved = !isNew && !dirty;
+    const reason = bytes > SYNC.PER_ITEM ? 'tooLarge' : saved && syncState.unsynced ? syncState.unsynced[draft.id] : null;
+    const kb = (bytes / 1024).toFixed(1);
+    const [hint, detail] =
+      reason === 'tooLarge'
+        ? [`仅本机 · ${kb} / 8 KB`, `规则约 ${kb} KB，超过账号同步的单条上限 8 KB，${saved ? '' : '保存后'}只保存在本机。`]
+        : reason === 'quota'
+          ? ['仅本机 · 同步空间已满', '账号同步空间（共 100 KB）已满，这条规则只保存在本机。']
+          : ['', ''];
+    els.syncHint.textContent = hint;
+    els.syncHint.title = detail && detail + '其他设备上不会出现这条规则。可以精简代码、拆成多条规则，或用「导出 / 导入」手动迁移。';
+    els.syncHint.hidden = !hint;
   }
 
   function renderDots() {
@@ -526,6 +552,11 @@
   // 弹窗或其他标签页改了规则
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
+    if (changes.syncState) {
+      syncState = changes.syncState.newValue || {};
+      if (draft) renderSyncHint();
+      if (!changes.rules) renderList();
+    }
     if (changes.settings) {
       settings = { enabled: true, ...(changes.settings.newValue || {}) };
       els.global.checked = settings.enabled !== false;
@@ -558,8 +589,9 @@
   // ---------- 启动 ----------
 
   (async function init() {
-    const data = await chrome.storage.local.get(['rules', 'settings']);
+    const data = await chrome.storage.local.get(['rules', 'settings', 'syncState']);
     rules = (data.rules || []).map(ST.normalizeRule);
+    syncState = data.syncState || {};
     settings = { enabled: true, ...(data.settings || {}) };
     els.global.checked = settings.enabled !== false;
     document.body.classList.toggle('paused', !els.global.checked);

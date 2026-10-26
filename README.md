@@ -93,6 +93,7 @@ site-tweaker/
   background.js        后台：注册用户脚本、兼容模式运行 JS、角标、快捷键
   content.js           内容脚本：插入并实时更新 CSS，请求运行 JS
   lib/rules.js         网址匹配、规则规范化（各处共用）
+  lib/sync.js          账号同步：本地与 chrome.storage.sync 的三方合并、同步配额计算（后台、管理页共用）
   lib/tools.js         把页面内工具注入到标签页、读取页面结构（弹窗、后台、管理页共用）
   lib/agent.js         AI 助手：OpenAI 兼容接口、工具调用循环、提示词
   inpage/              页面内工具：快捷消除（picker.js）、代码小窗（viewer.js）、共用浮层（ui.js）、
@@ -103,6 +104,7 @@ site-tweaker/
   icons/               图标
 tools/
   test-rules.js        匹配逻辑单元测试：node --test tools/test-rules.js
+  test-sync.js         同步合并逻辑单元测试：node --test tools/test-sync.js
   e2e-test.js          真实浏览器端到端测试（见下）
   make-icons.js        重新生成图标：node tools/make-icons.js
   preview-server.js    用模拟的 chrome API 在普通浏览器里预览界面；自带模拟的 AI 接口
@@ -124,4 +126,8 @@ node tools/e2e-test.js <chrome.exe 路径> <空的临时目录>
 
 - 浏览器内置页面（`chrome://`）和扩展商店页面不允许任何扩展注入内容。
 - 要作用于本地文件（`file://`），需要在扩展详情里打开「允许访问文件网址」。
-- 规则保存在浏览器本地（`chrome.storage.local`），不会上传。换电脑或重装前请用「导出」备份。
+- 规则和设置会随浏览器账号同步：在浏览器里登录账号并开启扩展同步（Edge 在「设置 → 个人资料 → 同步」里打开「扩展」），换设备登录同一账号后会自动出现。同步通过 `chrome.storage.sync` 完成，由浏览器厂商的同步服务传输。
+  - 两台设备都要安装同一个扩展（同一商店的同一个扩展）。用「加载已解压的扩展程序」安装时，扩展 ID 随文件夹路径变化，不同设备之间不会同步。
+  - 同步空间有限：单条规则约 8 KB，总共约 100 KB。超过的规则只保存在本机，管理页会标注「仅本机」。需要迁移这类规则时用「导出 / 导入」。
+  - 两台设备同时改了同一条规则时，以最后保存的为准。
+  - AI 助手的接口设置（含 API Key）不会同步。
