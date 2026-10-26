@@ -1,6 +1,6 @@
 # Edge 加载项商店提交资料
 
-- 安装包：`dist/site-tweaker-1.2.0.zip`（在 `site-tweaker/` 目录内打包，manifest.json 位于 zip 根目录）
+- 安装包：`dist/site-tweaker-1.3.0.zip`（在 `site-tweaker/` 目录内打包，manifest.json 位于 zip 根目录）
 - 商店徽标：`store/logo300.png`（300×300）
 - 类别：开发人员工具（Developer tools）
 - 隐私政策：`PRIVACY.md`
@@ -37,6 +37,8 @@
 ## 认证说明（Notes for certification）
 
 This extension lets users inject their own CSS and JavaScript into websites they choose (similar to Stylus / Tampermonkey). No remote code is downloaded or executed: every script that runs is code the user typed into the extension's own options page and stored in chrome.storage.local (mirrored to chrome.storage.sync so the browser can sync the user's own rules across their devices).
+
+What's new in 1.3.0: rules and settings sync across the user's own devices through the browser's account sync (chrome.storage.sync). Rules over the sync quota stay local, and the AI assistant's API settings/key are never synced.
 
 How to test:
 1. Install the extension. The options page opens automatically with a sample rule for example.com.
