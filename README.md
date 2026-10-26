@@ -132,3 +132,11 @@ node tools/e2e-test.js <chrome.exe 路径> <空的临时目录>
   - 两台设备同时改了同一条规则时，以最后保存的为准。
   - Chrome 和 Edge 各自用自己的账号同步（Google 账号 / Microsoft 账号），两者之间不会互相同步。需要在 Chrome 和 Edge 之间迁移规则时用「导出 / 导入」。
   - AI 助手的接口设置（含 API Key）不会同步。
+
+## 许可
+
+[MIT](LICENSE)
+
+## 友情链接
+
+- [LINUX DO](https://linux.do)：新的理想型社区
