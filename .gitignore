@@ -4,3 +4,4 @@ shots/
 .DS_Store
 Thumbs.db
 .claude/settings.local.json
+dist/
